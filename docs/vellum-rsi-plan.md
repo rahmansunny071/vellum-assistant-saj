@@ -6,8 +6,8 @@ Vellum-RSI is this fork of Vellum, set up so the assistant's memory system impro
 in a loop: observe real conversations, measure memory quality with ConvoMem-style metrics
 and user feedback, propose a change (config, prompt, or code), test it, and keep it only if
 it measurably helps. The aim is a personal assistant whose memory gets better per
-personalization **topic**: `tech-learning`, `finances`, `home-care` to start, with more
-added over time.
+personalization **topic**: `tech-learning`, `finances`, `home-care`, `home-buying` and
+`business` to start, with more added over time.
 
 The plan has three parts:
 
@@ -111,10 +111,22 @@ Config example for the target state:
 - **Latency:** session start plus Claude Code's own system prompt add time to first token.
   Measure in step 1 before committing `mainAgent`. The v3 selector runs on every turn, so
   it may need a cheaper model even if everything else is Opus.
-- **Usage terms and limits:** running a Claude Code subscription as an automated backend
-  for another product may fall outside its intended use, and it has rate limits. Check the
-  current terms. An Anthropic API key through the existing `anthropic` provider is the
-  fallback with the same model.
+- **Usage terms and limits (decided: Claude Code only, see Decisions):** all model calls,
+  including automated eval and tuning runs, go through Claude Code on your subscription.
+  That makes subscription rate limits the main constraint on how fast the loop can run, so
+  the plan has to budget for them:
+  - a global request budget per tuning run, and `acp.maxConcurrentSessions` of 1–2 for
+    eval runs
+  - back-off and resume: a run that hits a rate limit pauses and continues later from
+    its last finished item, instead of failing
+  - Stage A snapshots are cached hard (Part 3.1), so the expensive memory-building runs
+    happen rarely
+  - cheap call sites (the per-turn selector, topic classifier) at `low` effort, and
+    no-LLM metrics (evidence recall) used for most tuning decisions
+  - long eval runs scheduled overnight, when you aren't using the subscription
+  - re-check the current Claude Code usage terms for this kind of automated use before
+    M6. The existing `anthropic` provider stays available as a fallback, with no code
+    changes, if limits or terms become a blocker.
 - **Double memory:** Claude Code has its own memory (`CLAUDE.md`, auto-memory). Disable it
   for these sessions, or ConvoMem scores will reflect Claude Code's memory instead of
   Vellum's.
@@ -177,8 +189,10 @@ own traces, linked by `conversationId` and the buffer entries they consumed. Thi
   repeated questions and abstentions, and logs them as assessments with
   `source = auto`.
 - **Backfill:** a one-off script that replays existing `llm_request_logs` rows into MLflow.
-- **Redaction:** secrets and account numbers are masked before export. MLflow listens on
-  localhost only, and nothing leaves the machine.
+- **Redaction:** secrets, account numbers and financial amounts are replaced with
+  placeholders before export, using the same reversible scheme and private value store as
+  the dataset (convomem-arena plan, step 3). MLflow listens on localhost only, and nothing
+  leaves the machine.
 
 **Done when:** one chat turn shows up in the MLflow UI as a trace with the
 retrieve/agent/tool spans, a thumbs-down in the UI appears as an assessment on it, and a
@@ -330,12 +344,26 @@ scores, artifacts = prompt text or diff).
 
 M1–M2 and M3 are independent and can run in parallel.
 
+## Decisions (2026-11-15)
+
+- **Model access: Claude Code only.** Every call site, including automated eval and
+  tuning runs, runs on Claude Code (Opus 5.5) over ACP on your subscription. `mainAgent =
+  acp` is the long-term state, not a dev convenience. Rate limits are handled by the
+  budgeting rules in 1.1.
+- **Topics:** `tech-learning`, `finances`, `home-care`, `home-buying`, `business`.
+  `home-buying` and `business` are separate topics, not folded into others.
+- **Financial amounts:** redacted in the dataset and traces, with the real values kept in
+  a private local database that can restore them (details in the dataset plan, step 3).
+  The same applies to anything exported to MLflow (1.2).
+- **Raw transcripts:** only a local model (Ollama) reads unredacted text, for
+  redaction and topic labeling. Opus 5.5 only sees redacted text.
+- **History retention:** `cleanupPeriodDays` raised to 3650, and a raw snapshot taken
+  at `~/.convomem-personal/raw/2026-11-15/` (dataset milestone P0 done).
+
 ## Open questions
 
-- Subscription (Claude Code) or API key (Anthropic provider) for automated volume? This
-  decides whether `mainAgent = acp` is the long-term state or only a dev convenience.
 - Should topic be inferred per turn, or set per conversation by the user?
-- How much synthetic augmentation is acceptable while real `finances` / `home-care`
-  history is still thin?
+- How much synthetic augmentation is acceptable while real `finances`, `home-care` and
+  `home-buying` history is still thin?
 - Which memory tier the eval pins: v3 only (recommended, per `memory/AGENTS.md` v1/v2 are
   being retired).
