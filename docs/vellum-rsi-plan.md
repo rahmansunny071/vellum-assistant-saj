@@ -13,10 +13,11 @@ The plan has three parts:
 
 1. **Vellum pre-requisites** (this repo): Claude Code as the model provider over ACP, and
    full instrumentation of every conversation and memory decision.
-2. **Dataset pre-requisite** (convomem-arena repo): a ConvoMem-format dataset built from
-   your own Claude Code history. Planned separately in
-   `convomem-arena/docs/personal-dataset-plan.md` on branch `convomem-personal-plan`.
-3. **Memory tuning** (both repos): the improvement loop itself.
+2. **Dataset pre-requisite** (`personalmem-arena`, a local-only sibling project next to
+   `convomem-arena`): a ConvoMem-format dataset built from your own Claude Code history.
+   Planned separately in `personalmem-arena/docs/personal-dataset-plan.md`. That project
+   has no GitHub remote yet, so the plan is only on your machine.
+3. **Memory tuning** (this repo + personalmem-arena): the improvement loop itself.
 
 ```mermaid
 graph LR
@@ -191,7 +192,7 @@ own traces, linked by `conversationId` and the buffer entries they consumed. Thi
 - **Backfill:** a one-off script that replays existing `llm_request_logs` rows into MLflow.
 - **Redaction:** secrets, account numbers and financial amounts are replaced with
   placeholders before export, using the same reversible scheme and private value store as
-  the dataset (convomem-arena plan, step 3). MLflow listens on localhost only, and nothing
+  the dataset (personalmem-arena plan, step 3). MLflow listens on localhost only, and nothing
   leaves the machine.
 
 **Done when:** one chat turn shows up in the MLflow UI as a trace with the
@@ -204,7 +205,7 @@ The tuning targets are per topic, so Vellum needs to know which topic a turn bel
 
 - A topic registry (`~/.vellum-rsi/topics.yaml`): id, description, example phrases. Adding a
   topic is a registry edit, not a code change. The same file drives dataset labeling in
-  convomem-arena.
+  personalmem-arena.
 - A cheap per-turn topic classifier, multi-label with an `other` label. It writes `topic` onto the trace
   and the conversation.
 - Optional later step (a harness-level candidate, Part 3): topic-aware memory, such as
@@ -214,11 +215,14 @@ The tuning targets are per topic, so Vellum needs to know which topic a turn bel
 
 ## Part 2: Dataset pre-requisite (summary)
 
-Planned in detail in the convomem-arena repo (`docs/personal-dataset-plan.md`). In
-short: parse `~/.claude/projects/**/*.jsonl` into user/assistant dialogue, split it into
-episodes, redact it, label episodes by topic, generate questions for the six ConvoMem
-categories with evidence pointers, validate them, and write them in ConvoMem's file
-layout so convomem-arena's existing `EvidenceStream` / `mix()` / judges work unchanged.
+Planned in detail in the local-only `personalmem-arena` project
+(`personalmem-arena/docs/personal-dataset-plan.md`). In short: parse
+`~/.claude/projects/**/*.jsonl` into user/assistant dialogue, split it into episodes,
+redact it, label episodes by topic, generate questions for the six ConvoMem categories
+with evidence pointers, validate them, and write them in ConvoMem's file layout.
+personalmem-arena then exposes the dataset as its own verifiers environment, reusing
+convomem-arena as a library (`EvidenceStream` / `mix()` / judges) with convomem-arena
+itself left unchanged.
 Once Vellum is instrumented, Vellum's own conversations become a second source for the
 same pipeline.
 
@@ -335,7 +339,7 @@ scores, artifacts = prompt text or diff).
 |---|---|---|
 | M1 | ACP provider, one-shot call sites | `memoryV3SelectL2` runs on `acp`, and latency is measured |
 | M2 | MLflow tracing + feedback | A turn appears as a trace with retrieve/agent/tool spans and a UI thumbs-down assessment |
-| M3 | Personal dataset v0 | convomem-arena loads the local dataset, and `vf-validate` passes (see convomem-arena plan) |
+| M3 | Personal dataset v0 | `vf-validate personalmem-arena` passes on the local dataset (see personalmem-arena plan) |
 | M4 | Stage A/B harness | Baseline scores per topic × category with snapshot caching |
 | M5 | ACP provider, memory agents + main agent | Consolidation and chat run on Opus 5.5 high via ACP |
 | M6 | Loop v1: config + prompt tuning | One promoted candidate with a dev gain and no test regression, logged in MLflow |
