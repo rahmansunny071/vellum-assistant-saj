@@ -482,6 +482,19 @@ connection.
 - **History retention:** `cleanupPeriodDays` raised to 3650, and a raw snapshot taken
   at `~/.convomem-personal/raw/2026-11-15/` (dataset milestone P0 done).
 
+## Decisions (2026-11-16)
+
+- **Thumbs up/down in the app UI: deferred** until you chat with a traced instance daily.
+  The plan when it's built: a button in the web client's message hover actions
+  (`clients/web/.../message-hover-actions`), a daemon route that maps the assistant message
+  to its turn's user message and then to the trace through the `vellum.user_message_id` tag,
+  and a local copy of each rating. Until then, `assistant mlflow feedback` covers it.
+- **Selector latency: left as is** (Opus, high effort, ~4–6 s before each reply). Revisit
+  with M4 numbers, where the speed versus memory-quality trade-off can be measured.
+- **Where an everyday instance with real data runs the selector, titles and summaries:
+  decided when that instance is set up.** The test instance `vellum-rsi-m1` holds only
+  fictional data and keeps using Claude Code for them.
+
 ## Open questions
 
 - Should topic be inferred per turn, or set per conversation by the user?
