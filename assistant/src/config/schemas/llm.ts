@@ -64,6 +64,7 @@ export const KNOWN_LLM_PROVIDERS = [
   "openai",
   "gemini",
   "ollama",
+  "claude-code",
   "fireworks",
   "openrouter",
   "vercel-ai-gateway",

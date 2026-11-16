@@ -383,14 +383,23 @@ export class AcpAgentProcess {
   /**
    * Creates a new ACP session in the specified working directory.
    * Returns the session ID and the config options the agent reported.
+   *
+   * `meta` is passed through as the request's `_meta`, the ACP extension point
+   * adapters read session options from (e.g. claude-agent-acp's `systemPrompt`
+   * and `disableBuiltInTools`, used by the `claude-code` LLM provider).
    */
   async createSession(
     cwd: string,
+    meta?: Record<string, unknown>,
   ): Promise<{ sessionId: string; configOptions: SessionConfigOption[] }> {
     log.info({ agentId: this.agentId, cwd }, "Creating ACP session");
 
     const result: NewSessionResponse = await this.withAuthRetry(() =>
-      this.requireConnection().newSession({ cwd, mcpServers: [] }),
+      this.requireConnection().newSession({
+        cwd,
+        mcpServers: [],
+        ...(meta ? { _meta: meta } : {}),
+      }),
     );
 
     return {
@@ -528,6 +537,16 @@ export class AcpAgentProcess {
   /**
    * Kills the child process and cleans up the connection.
    */
+  /**
+   * Closes a session via `session/close`, releasing the adapter's per-session
+   * resources (claude-agent-acp runs one Claude Code process per session).
+   * Callers that open a session per request must close each one.
+   */
+  async closeSession(sessionId: string): Promise<void> {
+    log.info({ agentId: this.agentId, sessionId }, "Closing ACP session");
+    await this.requireConnection().closeSession({ sessionId });
+  }
+
   kill(): void {
     log.info({ agentId: this.agentId }, "Killing ACP agent process");
 

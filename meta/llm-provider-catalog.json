@@ -891,6 +891,53 @@
       ]
     },
     {
+      "id": "claude-code",
+      "displayName": "Claude Code (ACP)",
+      "subtitle": "Use your Claude Code subscription through the claude-agent-acp adapter. No API key required.",
+      "setupMode": "keyless",
+      "setupHint": "Requires the Claude Code ACP adapter and a Claude OAuth token stored for ACP agents.",
+      "supportsPlatformAuth": false,
+      "defaultModel": "opus",
+      "models": [
+        {
+          "id": "opus",
+          "displayName": "Claude Opus (via Claude Code)",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "defaultContextWindowTokens": 200000,
+          "longContextMode": "native-model",
+          "supportsThinking": true,
+          "supportsCaching": false,
+          "supportsVision": false,
+          "supportsToolUse": false
+        },
+        {
+          "id": "sonnet",
+          "displayName": "Claude Sonnet (via Claude Code)",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "defaultContextWindowTokens": 200000,
+          "longContextMode": "native-model",
+          "supportsThinking": true,
+          "supportsCaching": false,
+          "supportsVision": false,
+          "supportsToolUse": false
+        },
+        {
+          "id": "haiku",
+          "displayName": "Claude Haiku (via Claude Code)",
+          "contextWindowTokens": 200000,
+          "maxOutputTokens": 64000,
+          "defaultContextWindowTokens": 200000,
+          "longContextMode": "unsupported",
+          "supportsThinking": true,
+          "supportsCaching": false,
+          "supportsVision": false,
+          "supportsToolUse": false
+        }
+      ]
+    },
+    {
       "id": "fireworks",
       "displayName": "Fireworks",
       "subtitle": "Open-source models served by Fireworks. Requires a Fireworks API key.",
