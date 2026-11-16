@@ -337,7 +337,7 @@ scores, artifacts = prompt text or diff).
 
 | # | Milestone | Done when |
 |---|---|---|
-| M1 | ACP provider, one-shot call sites | `memoryV3SelectL2` runs on `acp`, and latency is measured |
+| M1 | ACP provider, one-shot call sites | **Done 2026-11-16** (branch `vellum-rsi-m1-acp-provider`): the selector, titles and summaries run on the `claude-code` provider; see "M1 results" |
 | M2 | MLflow tracing + feedback | A turn appears as a trace with retrieve/agent/tool spans and a UI thumbs-down assessment |
 | M3 | Personal dataset v0 | `vf-validate personalmem-arena` passes on the local dataset (see personalmem-arena plan) |
 | M4 | Stage A/B harness | Baseline scores per topic × category with snapshot caching |
@@ -347,6 +347,63 @@ scores, artifacts = prompt text or diff).
 | M8 | Online loop | Weekly run driven by new conversations and feedback |
 
 M1–M2 and M3 are independent and can run in parallel.
+
+## M1 results (2026-11-16)
+
+**What was built** (`assistant/src/providers/claude-code/`): a keyless `claude-code`
+provider (catalog models `opus` / `sonnet` / `haiku`, Claude Code's own aliases).
+The design differs from 1.1's "Claude Code owns the loop" target, because M1 only needs
+completions:
+
+- One shared `claude-agent-acp` process. Each call opens a fresh ACP session with `_meta`:
+  - `systemPrompt`: Vellum's prompt replaces Claude Code's
+  - `disableBuiltInTools: true`
+  - `claudeCode.options.settingSources: []`, so the user's `~/.claude` settings,
+    CLAUDE.md and Claude Code memory never load
+
+  The session is pinned to the profile's model and effort, prompted, and always closed.
+  Token usage comes from the ACP prompt response.
+- **Forced single-tool calls are emulated:** the model is asked for JSON matching the tool
+  schema, and the reply is returned as a `tool_use` block. This is how the v3 selector
+  (`tool_choice` on `select_pages`) works unchanged. Open tool use is refused with a clear
+  error until M5.
+- Credentials come from the existing ACP spawn path (`acp/claude_oauth_token` in the
+  assistant vault).
+
+**Live test** on `vellum-rsi-m1` (hatched from the M1 worktree, `--disable-platform`):
+chat stays on `qwen-local` (Ollama), and `memoryV3SelectL2`, `conversationTitle` and
+`conversationSummarization` are routed to a `claude-opus` profile (Opus, effort `high`).
+Twelve fictional concept pages were ingested so v3 leaves its under-10-page lean profile
+and runs the selector.
+
+| Measurement | Result |
+|---|---|
+| Direct `inference send` × 4 (wall time, including ~1 s CLI start) | 3.8 / 5.9 / 3.8 / 4.0 s, all correct |
+| v3 selector (`memoryV3SelectL2`) on a chat turn | **~4.3 s**, `selector_ran = 1`, 162 candidates → 3 chosen; the JSON parsed into a valid selection |
+| Conversation title | ~3.4 s, title generated |
+| Main reply (qwen, for comparison) | 27.8 s |
+
+**Findings:**
+
+- **The selector sits on the time-to-first-token path:** about 4.3 s at Opus/high before the
+  main model starts. Before M5 moves chat to Claude, try the selector at `low` effort or on
+  `sonnet` / `haiku` (a separate profile), and measure again.
+- **A first memory-quality miss, of the `changing_facts` kind.** Asked "what is my grocery
+  budget now and what was it before?", the pool held the page lead and its `Budget` section
+  (needle and dense lanes), but **not** its `History` section (520 → 640). So the answer
+  had the current value and correctly said memory had no earlier one. The selector chose
+  well from what it was offered; the gap is in section-level retrieval. This is an early
+  test case for the tuning loop (Part 3).
+- **Noise, not failure:** Vellum's ACP code logs every adapter stderr line at ERROR
+  (`[session/create] … phase=settings`). Worth downgrading before MLflow traces count
+  errors.
+- **Pre-existing config gap:** the background `memoryRetrospective` agent routes to a
+  seeded Anthropic profile whose connection doesn't exist on this instance, so it fails
+  with `ConnectionResolutionError`. It is a tool-using agent run, so M1 can't take it;
+  route it to `qwen-local` for now, and to `claude-code` in M5.
+- **Not covered by M1:** ACP calls don't write `llm_request_logs` rows (only
+  conversation-model calls do), so their timings come from daemon logs and the provider's
+  `rawResponse.timings`. Request-level tracing of these calls is M2's job.
 
 ## Decisions (2026-11-15)
 
