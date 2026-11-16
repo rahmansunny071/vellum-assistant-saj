@@ -59,6 +59,7 @@ import {
   resetRunningJobsToPending,
   SLOW_LLM_JOB_TYPES,
 } from "../../../persistence/jobs-store.js";
+import { getMlflowTracer } from "../../../telemetry/mlflow/tracer.js";
 import { isJobQueueResolution, type JobHandler } from "../../types.js";
 import { sweepOrphanConversationMemoryTables } from "./conversation-memory-orphan-sweep.js";
 import { getLogger } from "./logging.js";
@@ -731,7 +732,12 @@ async function processJob(
   }
   const handler = jobHandlers.get(job.type);
   if (handler) {
-    return await handler(job, config);
+    // One MLflow trace per job that makes model calls (consolidation,
+    // retrospective, …); the calls nest under it. A pass-through when
+    // tracing is off.
+    return await getMlflowTracer().traceJob(job, async () =>
+      handler(job, config),
+    );
   }
 
   const rawType = (job as { type: string }).type;

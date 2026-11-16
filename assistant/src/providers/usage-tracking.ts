@@ -1,4 +1,5 @@
 import { recordUsageEvent } from "../persistence/llm-usage-store.js";
+import { getMlflowTracer } from "../telemetry/mlflow/tracer.js";
 import { resolveUsageAttribution } from "../usage/attribution.js";
 import {
   buildPricingUsageFromResponse,
@@ -47,9 +48,19 @@ export class UsageTrackingProvider implements Provider {
     messages: Message[],
     options?: SendMessageOptions,
   ): Promise<ProviderResponse> {
-    const response = await this.inner.sendMessage(messages, options);
-    this.recordUsage(response, options);
-    return response;
+    // Every leaf provider is wrapped in exactly one UsageTrackingProvider, so
+    // this is the one place that sees each model call once (including
+    // one-shot call sites that never enter the agent loop's hooks).
+    return getMlflowTracer().traceModelCall(
+      this.name,
+      messages,
+      options,
+      async () => {
+        const response = await this.inner.sendMessage(messages, options);
+        this.recordUsage(response, options);
+        return response;
+      },
+    );
   }
 
   private recordUsage(

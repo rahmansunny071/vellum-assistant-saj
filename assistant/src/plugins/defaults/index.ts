@@ -71,6 +71,11 @@ import memoryShutdown from "./memory/hooks/shutdown.js";
 import memoryUserPromptSubmit from "./memory/hooks/user-prompt-submit.js";
 import { memoryInjectors } from "./memory/injectors.js";
 import memoryPkg from "./memory/package.json" with { type: "json" };
+import mlflowTracingPostToolUse from "./mlflow-tracing/hooks/post-tool-use.js";
+import mlflowTracingShutdown from "./mlflow-tracing/hooks/shutdown.js";
+import mlflowTracingStop from "./mlflow-tracing/hooks/stop.js";
+import mlflowTracingUserPromptSubmit from "./mlflow-tracing/hooks/user-prompt-submit.js";
+import mlflowTracingPkg from "./mlflow-tracing/package.json" with { type: "json" };
 import platformHostedPkg from "./platform-hosted/package.json" with { type: "json" };
 import { sessionInjectors } from "./session/injectors.js";
 import sessionPkg from "./session/package.json" with { type: "json" };
@@ -325,6 +330,26 @@ export const defaultMaxTokensContinuePlugin: Plugin = {
 };
 
 /**
+ * `mlflow-tracing` — opens a turn's MLflow trace at `user-prompt-submit`,
+ * records tool results at `post-tool-use`, and closes the trace at `stop`;
+ * `shutdown` flushes. Model calls are traced at the provider layer
+ * (`UsageTrackingProvider`), not here, so one-shot call sites are covered
+ * too. Every hook is a no-op unless `mlflowTracing.enabled`.
+ */
+export const defaultMlflowTracingPlugin: Plugin = {
+  manifest: {
+    name: mlflowTracingPkg.name,
+    version: mlflowTracingPkg.version,
+  },
+  hooks: {
+    "user-prompt-submit": mlflowTracingUserPromptSubmit,
+    "post-tool-use": mlflowTracingPostToolUse,
+    stop: mlflowTracingStop,
+    shutdown: mlflowTracingShutdown,
+  },
+};
+
+/**
  * `title-generate` — two pure-trigger hooks that delegate the title work to
  * the conversation-title service: `user-prompt-submit` (first-pass title) and
  * `stop` (second-pass regeneration once the topic is established).
@@ -472,6 +497,7 @@ export function getAllDefaultPlugins(): readonly Plugin[] {
     defaultImageRecoveryPlugin,
     defaultCompactionPlugin,
     defaultTitleGeneratePlugin,
+    defaultMlflowTracingPlugin,
   ];
 }
 

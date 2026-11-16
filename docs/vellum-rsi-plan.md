@@ -338,7 +338,7 @@ scores, artifacts = prompt text or diff).
 | # | Milestone | Done when |
 |---|---|---|
 | M1 | ACP provider, one-shot call sites | **Done 2026-11-16** (branch `vellum-rsi-m1-acp-provider`): the selector, titles and summaries run on the `claude-code` provider; see "M1 results" |
-| M2 | MLflow tracing + feedback | A turn appears as a trace with retrieve/agent/tool spans and a UI thumbs-down assessment |
+| M2 | MLflow tracing + feedback | **Done 2026-11-16** (branch `vellum-rsi-m2-mlflow`): turn traces with retrieve/model/tool spans, CLI thumbs-down as an assessment, and a consolidation job as its own trace; the UI thumbs is still to do. See "M2 results" |
 | M3 | Personal dataset v0 | `vf-validate personalmem-arena` passes on the local dataset (see personalmem-arena plan) |
 | M4 | Stage A/B harness | Baseline scores per topic × category with snapshot caching |
 | M5 | ACP provider, memory agents + main agent | Consolidation and chat run on Opus 5.5 high via ACP |
@@ -404,6 +404,67 @@ and runs the selector.
 - **Not covered by M1:** ACP calls don't write `llm_request_logs` rows (only
   conversation-model calls do), so their timings come from daemon logs and the provider's
   `rawResponse.timings`. Request-level tracing of these calls is M2's job.
+
+## M2 results (2026-11-16)
+
+**Server:** MLflow 3.17.2 (the newest release older than two weeks) in
+`~/.vellum-rsi/mlflow/.venv`, run as
+`mlflow server --backend-store-uri sqlite:///$HOME/.vellum-rsi/mlflow/mlflow.db --host 127.0.0.1 --port 5055`
+(port 5000 is taken by macOS AirPlay). It ingests OTLP/JSON at `/v1/traces` (experiment
+chosen by the `x-mlflow-experiment-id` header) and has an assessments API. Both were checked
+before writing Vellum code, so **no MLflow SDK dependency was added**; the TypeScript
+`mlflow-tracing` package (0.1.x) was judged too immature.
+
+**What was built** (`assistant/src/telemetry/mlflow/`, plugin `defaults/mlflow-tracing`):
+
+- **Config `mlflowTracing`:** `enabled` (default false), `endpoint` (loopback only, enforced
+  by the schema), `experimentName` (default `vellum-rsi`), `captureContent`
+  (`full` = secret-redacted text through Vellum's `redactSecrets`, or `metadata` = sizes only),
+  and `maxContentChars`.
+- **Every model call is a span:** a wrapper in `UsageTrackingProvider.sendMessage`, the one
+  layer each leaf provider call passes through once. This covers the one-shot call sites
+  (selector, title, summaries) that the agent-loop hooks never see. Spans carry the call site,
+  provider, model, stop reason and `mlflow.chat.tokenUsage`.
+- **Turn traces:** opened at `user-prompt-submit` and closed at `stop`. Spans recorded for a
+  conversation shortly before the turn opens (the memory selector runs first) are adopted into
+  it; any that no turn adopts within 60 s become standalone `call` traces. `post-tool-use` adds
+  `tool.<name>` spans, and v3's `writeTurnLog` adds a `memory.v3.retrieve` span (pool size, lane
+  mix, selector ran, chosen sections). `session.id` = conversation id, and searchable trace tags
+  are `vellum.kind`, `vellum.conversation_id` and `vellum.user_message_id`.
+- **Job traces:** the memory worker's `processJob` wraps each handler, and model calls inside
+  nest through AsyncLocalStorage. Only jobs that call a model (or fail) are exported, so
+  embedding and indexing jobs don't flood the experiment.
+- **Export:** OTLP/JSON over `fetch`, batched, a bounded queue (500 traces), 3 attempts,
+  throttled warnings. It never blocks a turn and is a pass-through while disabled.
+- **CLI:** `assistant mlflow status` and `assistant mlflow feedback up|down [--trace id] [--note …]`
+  (latest turn by tag search; stored as a HUMAN `user_feedback` assessment).
+
+**Tests:** 9 new tracer, exporter and feedback tests (fake `fetch`). 102 existing test files
+around the changed code pass. Typecheck, ESLint and Prettier are clean.
+
+**Live check on `vellum-rsi-m1`** (restarted on this branch, tracing enabled):
+
+| Trace | Result |
+|---|---|
+| Turn 1 (memory question) | `turn` 41.9 s: `llm.memoryV3SelectL2` (claude-code, 6.4 s, adopted from before the turn), `memory.v3.retrieve` (159 candidates; needle 100, dense 45, fresh 9, hot 3, always 2; 3 chosen), `llm.mainAgent` (qwen, 35.5 s, 10,767 / 898 tokens), `llm.conversationTitle` (claude-code, 3.6 s) |
+| Turn 2 ("use your remember tool") | `turn` 16.8 s: retrieval, `llm.mainAgent`, `tool.remember` with its input and output |
+| Feedback | `assistant mlflow feedback down --note …` → `user_feedback` = false (HUMAN) with the note, read back from MLflow |
+| Consolidation job | `memory_job.memory_v2_consolidate` 215.6 s, OK, with 7 nested spans: 3 `llm.memoryV2Consolidation`, `tool.file_read`, `tool.file_write`, plus the agent's own selector call and retrieval |
+
+To trigger that job immediately, the test instance briefly had
+`memory.substrate.consolidation_max_buffer_lines = 1`, now back at the default 100.
+`memoryV2Consolidation` and `memoryRetrospective` are routed to `qwen-local` on this instance,
+which also fixes the M1 finding that the retrospective failed on a missing Anthropic
+connection.
+
+**Not done / follow-ups:**
+
+- **The UI thumbs up/down** (clients) is still to do; feedback is CLI-only for now.
+- **Tool and retrieval spans have approximate timing:** the hooks carry no start time.
+  Retrieval is point-in-time, and the selector's own span gives the real latency.
+- **Financial-amount redaction** (the dataset's reversible placeholder scheme) is not applied
+  to traces yet; only secrets are redacted. Traces stay on localhost.
+- **No backfill** of older `llm_request_logs` rows.
 
 ## Decisions (2026-11-15)
 
