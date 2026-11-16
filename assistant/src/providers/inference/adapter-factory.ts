@@ -33,6 +33,7 @@ import { getLogger } from "../../util/logger.js";
 import { AnthropicProvider } from "../anthropic/client.js";
 import { AtlasCloudProvider } from "../atlascloud/client.js";
 import { BasetenProvider } from "../baseten/client.js";
+import { ClaudeCodeProvider } from "../claude-code/client.js";
 import { FireworksProvider } from "../fireworks/client.js";
 import { GeminiProvider } from "../gemini/client.js";
 import { IonetProvider } from "../ionet/client.js";
@@ -128,6 +129,8 @@ const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
       // Gemini routes managed proxies through `managedBaseUrl`, not `baseURL`.
       ...(baseURL ? { managedBaseUrl: baseURL } : {}),
     }),
+  // Keyless: credentials come from the ACP spawn path, not the connection.
+  "claude-code": ({ model }) => new ClaudeCodeProvider(model),
   ollama: ({ apiKey, model, streamTimeoutMs, baseURL }) =>
     new OllamaProvider(model, {
       // Empty string means keyless — Ollama's client treats undefined as

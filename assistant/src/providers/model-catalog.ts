@@ -1051,6 +1051,52 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     },
   },
   {
+    // Claude Code over ACP (src/providers/claude-code). Model ids are Claude
+    // Code's own aliases (`opus` = its current Opus). Text-only: plain
+    // completions and forced single-tool calls, no open tool use, hence
+    // `supportsToolUse: false`.
+    id: "claude-code",
+    displayName: "Claude Code (ACP)",
+    models: [
+      {
+        id: "opus",
+        displayName: "Claude Opus (via Claude Code)",
+        contextWindowTokens: 1000000,
+        maxOutputTokens: 128000,
+        supportsThinking: true,
+        supportsCaching: false,
+        supportsVision: false,
+        supportsToolUse: false,
+      },
+      {
+        id: "sonnet",
+        displayName: "Claude Sonnet (via Claude Code)",
+        contextWindowTokens: 1000000,
+        maxOutputTokens: 128000,
+        supportsThinking: true,
+        supportsCaching: false,
+        supportsVision: false,
+        supportsToolUse: false,
+      },
+      {
+        id: "haiku",
+        displayName: "Claude Haiku (via Claude Code)",
+        contextWindowTokens: 200000,
+        maxOutputTokens: 64000,
+        supportsThinking: true,
+        supportsCaching: false,
+        supportsVision: false,
+        supportsToolUse: false,
+      },
+    ],
+    defaultModel: "opus",
+    subtitle:
+      "Use your Claude Code subscription through the claude-agent-acp adapter. No API key required.",
+    setupMode: "keyless",
+    setupHint:
+      "Requires the Claude Code ACP adapter and a Claude OAuth token stored for ACP agents.",
+  },
+  {
     id: "fireworks",
     displayName: "Fireworks",
     subtitle:
