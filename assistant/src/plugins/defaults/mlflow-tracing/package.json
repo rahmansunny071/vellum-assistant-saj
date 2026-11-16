@@ -1,0 +1,14 @@
+{
+  "name": "default-mlflow-tracing",
+  "version": "1.0.0",
+  "description": "First-party default plugin that opens and closes per-turn MLflow traces and records tool results (Vellum-RSI M2). A no-op unless mlflowTracing.enabled is true.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "peerDependencies": {
+    "@vellumai/plugin-api": ">=0.8.0"
+  }
+}

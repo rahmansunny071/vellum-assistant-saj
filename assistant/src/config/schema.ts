@@ -44,6 +44,7 @@ import {
 import { MediaConfigSchema } from "./schemas/media.js";
 import { MemoryConfigSchema } from "./schemas/memory.js";
 import { MigrationsConfigSchema } from "./schemas/migrations.js";
+import { MlflowTracingConfigSchema } from "./schemas/mlflow-tracing.js";
 import { MonitoringConfigSchema } from "./schemas/monitoring.js";
 import { NotificationsConfigSchema } from "./schemas/notifications.js";
 import {
@@ -99,6 +100,9 @@ export const AssistantConfigSchema = z.object({
   // invalid `llm` block without falling back to `cloneDefaultConfig()`.
   llm: LLMSchema.default(LLMSchema.parse({})),
   llmRequestLogs: LlmRequestLogsConfigSchema,
+  mlflowTracing: MlflowTracingConfigSchema.default(
+    MlflowTracingConfigSchema.parse({}),
+  ),
   filing: FilingConfigSchema.default(FilingConfigSchema.parse({})),
   heartbeat: HeartbeatConfigSchema.default(HeartbeatConfigSchema.parse({})),
   hostBrowser: HostBrowserConfigSchema.default(

@@ -47,6 +47,7 @@ import {
   timeLatencySubSpan,
 } from "../../../../daemon/turn-latency-sub-spans.js";
 import { enqueueMemoryJob } from "../../../../persistence/jobs-store.js";
+import { getMlflowTracer } from "../../../../telemetry/mlflow/tracer.js";
 import { stripCommentLines } from "../host-utils.js";
 import { getLogger } from "../logging.js";
 import { type MemorySqlite, memorySqliteOrNull } from "../memory-db.js";
@@ -780,6 +781,38 @@ export function writeTurnLog(
       { err },
       "failed to write memory-v3 selections and pool; continuing",
     );
+  }
+  recordRetrievalTrace(conversationId, turn, pool);
+}
+
+/**
+ * Mirror the turn's pool record onto its MLflow trace (`memory.v3.retrieve`):
+ * pool size, lane mix, whether the selector ran, and what was chosen. A no-op
+ * unless `mlflowTracing.enabled`; never throws into the turn.
+ */
+function recordRetrievalTrace(
+  conversationId: string,
+  turn: number,
+  pool: PoolRecord,
+): void {
+  try {
+    const laneCounts: Record<string, number> = {};
+    for (const c of pool.candidates) {
+      laneCounts[c.lane] = (laneCounts[c.lane] ?? 0) + 1;
+    }
+    getMlflowTracer().recordMemoryRetrieval({
+      conversationId,
+      turn,
+      poolSize: pool.pool_size,
+      selectedCount: pool.selected_count,
+      selectorRan: pool.selector_ran,
+      laneCounts,
+      chosen: pool.candidates
+        .filter((c) => c.chosen)
+        .map((c) => ({ slug: c.slug, section: c.section_title, lane: c.lane })),
+    });
+  } catch (err) {
+    log.warn({ err }, "failed to record memory-v3 retrieval trace; continuing");
   }
 }
 

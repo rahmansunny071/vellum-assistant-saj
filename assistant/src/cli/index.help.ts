@@ -38,6 +38,7 @@ import { inferenceHelp, llmHelp } from "./commands/inference.help.js";
 import { keysHelp } from "./commands/keys.help.js";
 import { mcpHelp } from "./commands/mcp.help.js";
 import { memoryHelp } from "./commands/memory/index.help.js";
+import { mlflowHelp } from "./commands/mlflow.help.js";
 import { monitoringHelp } from "./commands/monitoring.help.js";
 import { notificationsHelp } from "./commands/notifications.help.js";
 import { oauthHelp } from "./commands/oauth/index.help.js";
@@ -91,6 +92,7 @@ export const CLI_COMMAND_HELP: readonly CliCommandHelp[] = [
   llmHelp,
   mcpHelp,
   memoryHelp,
+  mlflowHelp,
   notificationsHelp,
   oauthHelp,
   pendingHelp,
